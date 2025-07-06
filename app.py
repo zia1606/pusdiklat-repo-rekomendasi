@@ -105,7 +105,87 @@ def recommend():
             'status': 'error',
             'message': str(e)
         }), 500
+    
 
+# Tambahkan di file Flask Anda (setelah imports yang sudah ada)
+import sys
+import json
+import re
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+
+# Inisialisasi Sastrawi (di luar route)
+stemmer_factory = StemmerFactory()
+stemmer = stemmer_factory.create_stemmer()
+stopword_factory = StopWordRemoverFactory()
+stopword_remover = stopword_factory.create_stop_word_remover()
+
+def preprocess_text(text, stemmer, stopword_remover):
+    """Lakukan preprocessing teks lengkap"""
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    
+    # Case folding
+    text = text.lower()
+    
+    # Filtering: hapus karakter khusus, angka, dll
+    text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+    
+    # Tokenization sederhana
+    tokens = text.split()
+    
+    # Stopword removal
+    filtered_text = stopword_remover.remove(' '.join(tokens))
+    tokens = filtered_text.split()
+    
+    # Stemming
+    stemmed_tokens = [stemmer.stem(word) for word in tokens]
+    
+    # Filter kata dengan panjang < 2 hanya di akhir (satu kali saja)
+    final_tokens = [word for word in stemmed_tokens if len(word) >= 2]
+    
+    return ' '.join(final_tokens)
+
+@app.route('/preprocess', methods=['POST'])
+def preprocess():
+    try:
+        data = request.json
+        
+        # Validasi input
+        if not data or 'id' not in data or 'judul' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Format data tidak valid. Harus menyertakan id dan judul'
+            }), 400
+
+        # Preprocessing judul dan ringkasan secara terpisah
+        judul_preprocessed = preprocess_text(data.get('judul', ''), stemmer, stopword_remover)
+        ringkasan_preprocessed = preprocess_text(data.get('ringkasan', ''), stemmer, stopword_remover)
+        
+        # Gabungkan hasil preprocessing judul dan ringkasan
+        combined_preprocessing = []
+        
+        if judul_preprocessed.strip():
+            combined_preprocessing.append(judul_preprocessed)
+        
+        if ringkasan_preprocessed.strip():
+            combined_preprocessing.append(ringkasan_preprocessed)
+        
+        # Gabungkan dengan spasi sebagai pemisah
+        final_preprocessing = ' '.join(combined_preprocessing)
+        
+        return jsonify({
+            'status': 'success',
+            'id': data['id'],
+            'preprocessing': final_preprocessing
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+    
 if __name__ == '__main__':
     port = int(os.environ.get("WEB_PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
