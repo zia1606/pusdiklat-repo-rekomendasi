@@ -108,8 +108,8 @@ def recommend():
     
 
 # import package
-# import sys
-# import json
+import sys
+import json
 import re
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
