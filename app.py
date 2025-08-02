@@ -107,82 +107,65 @@ def recommend():
         }), 500
     
 
-# Tambahkan di file Flask Anda (setelah imports yang sudah ada)
-import sys
-import json
-import re
-from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
-
-# Inisialisasi Sastrawi (di luar route)
-stemmer_factory = StemmerFactory()
-stemmer = stemmer_factory.create_stemmer()
-stopword_factory = StopWordRemoverFactory()
-stopword_remover = stopword_factory.create_stop_word_remover()
+# import package
+# import sys
+# import json
+stemmer = StemmerFactory().create_stemmer()
+stopword_remover = StopWordRemoverFactory().create_stop_word_remover()
 
 def preprocess_text(text, stemmer, stopword_remover):
-    """Lakukan preprocessing teks lengkap"""
+    """Lakukan preprocessing teks dengan tahapan sama persis seperti di DataFrame"""
     if not isinstance(text, str) or not text.strip():
         return ""
     
-    # Case folding
-    text = text.lower()
+    # 1. Case folding
+    text_lower = text.lower()
     
-    # Filtering: hapus karakter khusus, angka, dll
-    text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+    # 2. Tokenisasi awal (sebelum filtering)
+    tokens_raw = text_lower.split()
     
-    # Tokenization sederhana
-    tokens = text.split()
+    # 3. Filter karakter khusus
+    text_filtered = re.sub(r'[^a-zA-Z\s]', ' ', text_lower)
     
-    # Stopword removal
-    filtered_text = stopword_remover.remove(' '.join(tokens))
-    tokens = filtered_text.split()
+    # 4. Stopword removal
+    filtered_stopword = stopword_remover.remove(text_filtered)
     
-    # Stemming
-    stemmed_tokens = [stemmer.stem(word) for word in tokens]
+    # 5. Tokenisasi setelah filtering
+    tokens_clean = filtered_stopword.split()
     
-    # Filter kata dengan panjang < 2 hanya di akhir (satu kali saja)
-    final_tokens = [word for word in stemmed_tokens if len(word) >= 2]
+    # 6. Stemming
+    stemmed_tokens = [stemmer.stem(word) for word in tokens_clean]
     
-    return ' '.join(final_tokens)
+    # Tidak melakukan filter kata pendek (<2 karakter) untuk match dengan referensi
+    return ' '.join(stemmed_tokens)
 
 @app.route('/preprocess', methods=['POST'])
 def preprocess():
     try:
         data = request.json
         
-        # Validasi input
-        if not data or 'id' not in data or 'judul' not in data:
-            return jsonify({
-                'status': 'error',
-                'message': 'Format data tidak valid. Harus menyertakan id dan judul'
-            }), 400
-
-        # Preprocessing judul dan ringkasan secara terpisah
-        judul_preprocessed = preprocess_text(data.get('judul', ''), stemmer, stopword_remover)
-        ringkasan_preprocessed = preprocess_text(data.get('ringkasan', ''), stemmer, stopword_remover)
+        # Proses masing-masing field dengan pipeline yang sama
+        judul = preprocess_text(data.get('judul', ''), stemmer, stopword_remover)
+        ringkasan = preprocess_text(data.get('ringkasan', ''), stemmer, stopword_remover)
+        kategori = preprocess_text(data.get('kategori', ''), stemmer, stopword_remover)
         
-        # Gabungkan hasil preprocessing judul dan ringkasan
-        combined_preprocessing = []
-        
-        if judul_preprocessed.strip():
-            combined_preprocessing.append(judul_preprocessed)
-        
-        if ringkasan_preprocessed.strip():
-            combined_preprocessing.append(ringkasan_preprocessed)
-        
-        # Gabungkan dengan spasi sebagai pemisah
-        final_preprocessing = ' '.join(combined_preprocessing)
+        # Gabungkan dengan format yang sama
+        hasil_akhir = ' '.join(filter(None, [judul, kategori, ringkasan]))
         
         return jsonify({
             'status': 'success',
             'id': data['id'],
-            'preprocessing': final_preprocessing
+            'preprocessing': hasil_akhir,
+            'detail': {
+                'judul': judul,
+                'kategori': kategori,
+                'ringkasan': ringkasan
+            }
         })
         
     except Exception as e:
         return jsonify({
-            'status': 'error',
+            'status': 'error', 
             'message': str(e)
         }), 500
     
