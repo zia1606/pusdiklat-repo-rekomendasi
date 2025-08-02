@@ -110,6 +110,10 @@ def recommend():
 # import package
 # import sys
 # import json
+import re
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+
 stemmer = StemmerFactory().create_stemmer()
 stopword_remover = StopWordRemoverFactory().create_stop_word_remover()
 
